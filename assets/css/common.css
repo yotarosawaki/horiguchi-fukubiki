@@ -93,7 +93,7 @@ input:focus, select:focus, textarea:focus, .btn:focus-visible { outline: 3px sol
   background: var(--green-900);
 }
 .pin-card {
-  width: min(420px, 100%); background: var(--paper); border-radius: 18px; padding: 2rem;
+  width: min(420px, 100%); background: var(--paper); color: var(--ink); border-radius: 18px; padding: 2rem;
   display: grid; gap: 0.75rem; text-align: center;
 }
 .pin-card h1 { font-size: 1.25rem; margin: 0 0 0.5rem; }
