@@ -35,7 +35,7 @@ PIN は端末ごとに一度入れれば、その端末に記憶されます（�
 
 ## まず試す（試用モード）
 
-サーバーなしで、このPCのブラウザだけで一連の流れを試せます（`assets/js/config.js` の `backend: 'mock'`）。
+サーバーなしで、このPCのブラウザだけで一連の流れを試せます。現在の config.js は本番（`backend: 'supabase'`）なので、URL の末尾に `?backend=mock` を付けて開いてください（例: http://localhost:8765/?backend=mock）。本番のデータには触れません。
 
 ```bash
 python -m http.server 8765
