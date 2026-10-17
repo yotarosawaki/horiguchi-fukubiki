@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>喫茶店 クーポン確認</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;800&family=Noto+Sans+Thai:wght@400;600;800&family=Shippori+Mincho:wght@700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/common.css?v=3">
+<style>
+  main { max-width: 1000px; margin: 0 auto; padding: 16px; display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; align-items: start; }
+  @media (max-width: 760px) { main { grid-template-columns: 1fr; } }
+  .scanner { display: grid; gap: 12px; }
+  .video-box { position: relative; aspect-ratio: 4 / 3; background: #111; border-radius: 14px; overflow: hidden; display: grid; place-items: center; }
+  .video-box video { width: 100%; height: 100%; object-fit: cover; }
+  .video-box .frame { position: absolute; inset: 18% 24%; border: 4px solid rgba(255,255,255,0.85); border-radius: 18px; box-shadow: 0 0 0 999px rgba(0,0,0,0.25); }
+  .video-box .btn { position: absolute; }
+  .hint { margin: 0; font-weight: 600; }
+  .manual { display: flex; gap: 8px; }
+  .manual input { font-size: 1.4rem; text-transform: uppercase; letter-spacing: 0.15em; }
+  .manual .btn { flex: none; }
+  h2 { font-size: 1rem; margin: 0 0 8px; }
+  .today { font-size: 1.4rem; font-weight: 800; margin-bottom: 8px; }
+  .recent { list-style: none; padding: 0; margin: 0; font-size: 0.9rem; }
+  .recent li { display: flex; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); }
+  .recent .time { color: var(--muted); margin-left: auto; white-space: nowrap; }
+
+  .verdict { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px; background: rgba(15,25,18,0.55); }
+  .verdict-card { width: min(560px, 100%); border-radius: 22px; overflow: hidden; background: var(--paper); text-align: center; }
+  .verdict-top { padding: 22px 16px; color: #fff; font-size: 1.8rem; font-weight: 800; }
+  .verdict-top .icon { font-size: 3.2rem; line-height: 1; display: block; margin-bottom: 6px; }
+  .verdict.ok .verdict-top { background: var(--ok); }
+  .verdict.ng .verdict-top { background: var(--ng); }
+  .verdict.done .verdict-top { background: var(--green-700); }
+  .verdict-body { padding: 22px; display: grid; gap: 8px; }
+  .verdict-body .ball { margin: 0 auto; width: 70px; height: 70px; font-size: 1rem; }
+  .verdict-body .name { font-size: 1.9rem; font-weight: 800; line-height: 1.25; }
+  .verdict-body .note { color: var(--muted); font-size: 1.1rem; }
+  .verdict-body .meta { color: var(--muted); font-size: 0.9rem; }
+  .verdict-acts { display: grid; grid-template-columns: 1fr 2fr; gap: 10px; margin-top: 10px; }
+  .verdict-acts.single { grid-template-columns: 1fr; }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div><span class="brand-mark" data-i18n="brand"></span> <h1 style="display:inline" data-i18n="cafe_title"></h1></div>
+  <button class="btn btn-sm" id="reset" data-i18n="pin_reset"></button>
+</header>
+<main>
+  <section class="card scanner">
+    <div class="video-box" id="video-box">
+      <video id="video" playsinline muted></video>
+      <div class="frame hidden" id="frame"></div>
+      <button class="btn btn-gold btn-lg" id="cam-btn" data-i18n="cafe_camera_start"></button>
+    </div>
+    <p class="hint" id="hint" data-i18n="cafe_scan_hint"></p>
+    <form class="manual" id="manual" autocomplete="off">
+      <input type="text" id="code" maxlength="6" data-i18n-ph="cafe_manual_ph" autocapitalize="characters" aria-label="code">
+      <button class="btn btn-primary btn-lg" type="submit" data-i18n="cafe_check"></button>
+    </form>
+  </section>
+  <aside class="card">
+    <div class="today" id="today"></div>
+    <h2 data-i18n="cafe_recent"></h2>
+    <ul class="recent" id="recent"></ul>
+  </aside>
+</main>
+
+<script src="assets/js/config.js?v=3"></script>
+<script src="assets/lang/ja.js?v=3"></script>
+<script src="assets/lang/th.js?v=3"></script>
+<script src="assets/js/i18n.js?v=3"></script>
+<script src="assets/js/mock.js?v=3"></script>
+<script src="assets/js/api.js?v=3"></script>
+<script src="assets/js/ui.js?v=3"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+<script>
+(() => {
+  const { t, field, fmtDate, errMsg } = I18N;
+  const $ = (id) => document.getElementById(id);
+  let pin, paused = false, stream, detector;
+
+  I18N.apply();
+  UI.mockBadge();
+  $('reset').addEventListener('click', () => UI.resetDevice('cafe'));
+
+  // QR の中身（クーポンURL / ID / コード）から照会キーを取り出す
+  function keyFrom(text) {
+    const s = String(text || '').trim();
+    try { const c = new URL(s).searchParams.get('c'); if (c) return c; } catch (e) { /* URLでない */ }
+    return s;
+  }
+
+  // ---- カメラ読み取り
+  async function startCamera() {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+    } catch (e) {
+      $('hint').textContent = t('cafe_camera_error');
+      return;
+    }
+    const v = $('video');
+    v.srcObject = stream;
+    await v.play();
+    $('cam-btn').classList.add('hidden');
+    $('frame').classList.remove('hidden');
+    if ('BarcodeDetector' in window) {
+      try { detector = new BarcodeDetector({ formats: ['qr_code'] }); } catch (e) { detector = null; }
+    }
+    scanLoop();
+  }
+
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  async function scanOnce() {
+    const v = $('video');
+    if (v.readyState < 2) return null;
+    if (detector) {
+      const codes = await detector.detect(v).catch(() => []);
+      return codes[0] ? codes[0].rawValue : null;
+    }
+    if (!window.jsQR) return null;
+    const w = 640, h = Math.round(640 * v.videoHeight / v.videoWidth) || 480;
+    canvas.width = w; canvas.height = h;
+    ctx.drawImage(v, 0, 0, w, h);
+    const r = window.jsQR(ctx.getImageData(0, 0, w, h).data, w, h, { inversionAttempts: 'dontInvert' });
+    return r ? r.data : null;
+  }
+  async function scanLoop() {
+    if (!paused) {
+      const text = await scanOnce();
+      if (text) { paused = true; if (navigator.vibrate) navigator.vibrate(80); await check(keyFrom(text)); }
+    }
+    setTimeout(scanLoop, 200);
+  }
+
+  // ---- 照会と消し込み
+  async function check(key) {
+    paused = true;
+    const res = await API.call('cafe_check', { p_pin: pin, p_key: key });
+    if (UI.isAuthError(res)) return UI.resetDevice('cafe');
+    if (!res.ok) {
+      if (res.error === 'not_found') return verdict('ng', t('cafe_ng_not_found'));
+      return verdict('ng', errMsg(res.error));
+    }
+    const c = res.coupon;
+    if (c.status === 'valid') return verdict('ok', t('cafe_ok_title'), c, true);
+    return verdict('ng', t('cafe_ng_' + c.status), c);
+  }
+
+  async function redeem(c) {
+    const res = await API.call('cafe_redeem', { p_pin: pin, p_id: c.id });
+    if (UI.isAuthError(res)) return UI.resetDevice('cafe');
+    if (res.ok) {
+      verdict('done', t('cafe_redeemed'), res.coupon);
+      loadRecent();
+      setTimeout(closeVerdict, 3500);
+    } else if (res.coupon) {
+      verdict('ng', t('cafe_ng_' + res.coupon.status), res.coupon);
+    } else {
+      verdict('ng', errMsg(res.error));
+    }
+  }
+
+  function closeVerdict() {
+    const el = document.querySelector('.verdict');
+    if (el) el.remove();
+    $('code').value = '';
+    setTimeout(() => { paused = false; }, 600); // 同じQRをすぐ再読込しないよう少し待つ
+  }
+
+  function verdict(kind, title, c, canRedeem) {
+    document.querySelectorAll('.verdict').forEach((e) => e.remove());
+    const icon = { ok: '✓', ng: '✕', done: '✓' }[kind];
+    const p = c && c.prize;
+    const el = document.createElement('div');
+    el.className = `verdict ${kind}`;
+    el.innerHTML = `<div class="verdict-card" role="alertdialog" aria-live="assertive">
+      <div class="verdict-top"><span class="icon">${icon}</span>${UI.esc(title)}</div>
+      <div class="verdict-body">
+        ${p ? `
+          <span class="rank-ball ball" style="background:${UI.esc(p.color)};color:${UI.inkFor(p.color)}">${UI.esc(UI.rankLabel(p.rank))}</span>
+          <div class="name">${UI.esc(field(p, 'name'))}</div>
+          ${field(p, 'note') ? `<div class="note">${UI.esc(field(p, 'note'))}</div>` : ''}
+          <div class="meta"><span class="mono">${UI.esc(c.code)}</span> ・ ${UI.esc(t('mon_valid_until', { date: I18N.fmtExpiry(c.expires_at) }))}</div>
+          ${c.redeemed_at ? `<div class="meta"><b>${UI.esc(t('cafe_used_at', { date: fmtDate(c.redeemed_at) }))}</b></div>` : ''}` : ''}
+        <div class="verdict-acts ${canRedeem ? '' : 'single'}">
+          <button class="btn btn-lg" data-act="back">${UI.esc(t('cafe_back'))}</button>
+          ${canRedeem ? `<button class="btn btn-primary btn-lg" data-act="redeem">${UI.esc(t('cafe_redeem'))}</button>` : ''}
+        </div>
+      </div></div>`;
+    el.addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-act]');
+      if (!b) return;
+      if (b.dataset.act === 'redeem') { b.disabled = true; redeem(c); } else closeVerdict();
+    });
+    document.body.appendChild(el);
+  }
+
+  async function loadRecent() {
+    const res = await API.call('cafe_recent', { p_pin: pin });
+    if (!res.ok) return;
+    $('today').textContent = t('cafe_today', { n: res.today });
+    $('recent').innerHTML = res.coupons.map((c) => `<li>
+      <span class="rank-ball" style="background:${UI.esc(c.prize.color)};color:${UI.inkFor(c.prize.color)}">${c.prize.rank}</span>
+      <span>${UI.esc(field(c.prize, 'name'))}</span>
+      <span class="time">${UI.esc(fmtDate(c.redeemed_at, { year: undefined }))}</span></li>`).join('');
+  }
+
+  $('cam-btn').addEventListener('click', startCamera);
+  $('manual').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const v = $('code').value.trim();
+    if (v) check(v);
+  });
+
+  UI.requirePin('cafe').then((p) => {
+    pin = p;
+    loadRecent();
+    setInterval(loadRecent, 30000);
+    startCamera();
+  });
+})();
+</script>
+</body>
+</html>

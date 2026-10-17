@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>売場スタッフ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;800&family=Noto+Sans+Thai:wght@400;600;800&family=Shippori+Mincho:wght@700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/common.css?v=3">
+<style>
+  main { max-width: 760px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; }
+  .issue-form { display: grid; gap: 12px; }
+  .issue-form label { font-weight: 700; font-size: 1.1rem; }
+  .issue-form input { font-size: 2rem; padding: 0.4em 0.6em; letter-spacing: 0.05em; }
+  .issue-form .btn { font-size: 1.6rem; padding: 0.7em; }
+  .help { margin: 0; }
+  .msg { min-height: 1.6em; margin: 0; font-weight: 700; }
+  .msg[data-type=error] { color: var(--ng); }
+  .msg[data-type=ok] { color: var(--ok); }
+  h2 { font-size: 1rem; margin: 0 0 8px; }
+  .draw-list { list-style: none; margin: 0; padding: 0; }
+  .draw-list li { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .draw-list .meta { font-size: 0.85rem; color: var(--muted); }
+  .draw-list .name { font-weight: 700; }
+  .draw-list .acts { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .modal-card { text-align: center; }
+  .modal-card .code { font-size: 2rem; font-weight: 800; }
+  @media (max-width: 520px) {
+    .draw-list li { grid-template-columns: auto 1fr; }
+    .draw-list .acts { grid-column: 1 / -1; justify-content: flex-start; }
+  }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div><span class="brand-mark" data-i18n="brand"></span> <h1 style="display:inline" data-i18n="staff_title"></h1></div>
+  <button class="btn btn-sm" id="reset" data-i18n="pin_reset"></button>
+</header>
+<main>
+  <form class="card issue-form" id="form" autocomplete="off">
+    <label for="receipt" data-i18n="staff_receipt"></label>
+    <input type="text" id="receipt" data-i18n-ph="staff_receipt_ph" maxlength="40" inputmode="text" autocapitalize="characters">
+    <button class="btn btn-primary" type="submit" id="draw-btn" data-i18n="staff_draw"></button>
+    <p class="msg" id="msg" role="status"></p>
+    <p class="help muted small" data-i18n="staff_help"></p>
+  </form>
+  <section class="card">
+    <h2 data-i18n="staff_recent"></h2>
+    <ul class="draw-list" id="list"></ul>
+  </section>
+</main>
+
+<script src="assets/js/config.js?v=3"></script>
+<script src="assets/lang/ja.js?v=3"></script>
+<script src="assets/lang/th.js?v=3"></script>
+<script src="assets/js/i18n.js?v=3"></script>
+<script src="assets/js/mock.js?v=3"></script>
+<script src="assets/js/api.js?v=3"></script>
+<script src="assets/js/ui.js?v=3"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script>
+(() => {
+  const { t, field, fmtDate, errMsg } = I18N;
+  const $ = (id) => document.getElementById(id);
+  let pin, draws = [];
+
+  I18N.apply();
+  UI.mockBadge();
+  $('reset').addEventListener('click', () => UI.resetDevice('staff'));
+
+  function setMsg(text, type) { $('msg').textContent = text; $('msg').dataset.type = type || ''; }
+
+  function statusPill(d) {
+    const s = d.coupon.status !== 'valid' ? d.coupon.status : d.status;
+    return `<span class="pill pill-${s}">${UI.esc(t('status_' + s))}</span>`;
+  }
+
+  function render() {
+    if (!draws.length) { $('list').innerHTML = `<li class="muted">${UI.esc(t('staff_empty'))}</li>`; return; }
+    $('list').innerHTML = draws.map((d) => {
+      const p = d.coupon.prize;
+      return `<li>
+        <span class="rank-ball" style="background:${UI.esc(p.color)};color:${UI.inkFor(p.color)}">${p.rank}</span>
+        <div>
+          <div class="name">${UI.esc(UI.rankLabel(p.rank))} ${UI.esc(field(p, 'name'))} ${statusPill(d)}</div>
+          <div class="meta">${UI.esc(fmtDate(d.created_at, { year: undefined, month: undefined, day: undefined }))} ・ #${UI.esc(d.receipt_no)} ・ <span class="mono">${UI.esc(d.coupon.code)}</span></div>
+        </div>
+        <div class="acts">
+          <button class="btn btn-sm" data-act="redisplay" data-id="${d.id}">${UI.esc(t('staff_redisplay'))}</button>
+          <button class="btn btn-sm" data-act="qr" data-id="${d.id}">${UI.esc(t('staff_show_qr'))}</button>
+        </div>
+      </li>`;
+    }).join('');
+  }
+
+  async function refresh() {
+    const res = await API.call('staff_recent', { p_pin: pin, p_limit: 30 });
+    if (UI.isAuthError(res)) return UI.resetDevice('staff');
+    if (res.ok) { draws = res.draws; render(); }
+  }
+
+  $('form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const receipt = $('receipt').value.trim();
+    if (!receipt) { setMsg(errMsg('receipt_required'), 'error'); $('receipt').focus(); return; }
+    $('draw-btn').disabled = true;
+    setMsg(t('loading'));
+    const res = await API.call('issue_draw', { p_pin: pin, p_receipt: receipt });
+    $('draw-btn').disabled = false;
+    if (UI.isAuthError(res)) return UI.resetDevice('staff');
+    if (!res.ok) { setMsg(errMsg(res.error), 'error'); $('receipt').select(); return; }
+    setMsg(res.queue > 1 ? t('staff_issued_queue', { n: res.queue }) : t('staff_issued'), 'ok');
+    $('receipt').value = '';
+    $('receipt').focus();
+    refresh();
+  });
+
+  $('list').addEventListener('click', async (e) => {
+    const b = e.target.closest('button[data-act]');
+    if (!b) return;
+    const d = draws.find((x) => String(x.id) === b.dataset.id);
+    if (!d) return;
+    if (b.dataset.act === 'redisplay') {
+      const res = await API.call('staff_redisplay', { p_pin: pin, p_draw_id: d.id });
+      UI.toast(res.ok ? t('staff_redisplay_done') : errMsg(res.error), res.ok ? 'ok' : 'error');
+      refresh();
+    } else {
+      showQr(d);
+    }
+  });
+
+  function showQr(d) {
+    const p = d.coupon.prize;
+    const m = document.createElement('div');
+    m.className = 'modal';
+    m.innerHTML = `<div class="modal-card">
+      <h2>${UI.esc(UI.rankLabel(p.rank))} ${UI.esc(field(p, 'name'))}</h2>
+      ${UI.qrSvg(UI.couponUrl(d.coupon.id))}
+      <div class="code mono">${UI.esc(d.coupon.code)}</div>
+      <p class="muted small">${UI.esc(t('mon_valid_until', { date: I18N.fmtExpiry(d.coupon.expires_at) }))}</p>
+      <p class="small">${UI.esc(t('staff_qr_note'))}</p>
+      <button class="btn btn-primary">${UI.esc(t('close'))}</button></div>`;
+    m.addEventListener('click', (e) => { if (e.target === m || e.target.closest('button')) m.remove(); });
+    document.body.appendChild(m);
+  }
+
+  UI.requirePin('staff').then((p) => {
+    pin = p;
+    $('receipt').focus();
+    refresh();
+    setInterval(refresh, 10000);
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>抽選モニター</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;800&family=Noto+Sans+Thai:wght@400;600;800&family=Shippori+Mincho:wght@600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/common.css?v=3">
+<style>
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    background-color: var(--green-900);
+    background-image:
+      radial-gradient(circle at 100% 150%, transparent 24%, rgba(193,154,63,0.07) 25%, rgba(193,154,63,0.07) 28%, transparent 29%, transparent 36%, rgba(193,154,63,0.07) 37%, rgba(193,154,63,0.07) 40%, transparent 41%),
+      radial-gradient(circle at 0 150%, transparent 24%, rgba(193,154,63,0.07) 25%, rgba(193,154,63,0.07) 28%, transparent 29%, transparent 36%, rgba(193,154,63,0.07) 37%, rgba(193,154,63,0.07) 40%, transparent 41%),
+      radial-gradient(circle at 50% 100%, transparent 24%, rgba(193,154,63,0.07) 25%, rgba(193,154,63,0.07) 28%, transparent 29%, transparent 36%, rgba(193,154,63,0.07) 37%, rgba(193,154,63,0.07) 40%, transparent 41%);
+    background-size: 8vmin 4vmin;
+    color: #fff;
+  }
+
+  .stage { position: absolute; inset: 0; display: grid; grid-template-columns: 1.1fr 1fr; align-items: center; gap: 3vw; padding: 5vh 5vw; }
+  .copy .brand { font-family: var(--font-serif); color: var(--gold-soft); font-size: 2.6vmin; letter-spacing: 0.35em; }
+  .copy .event { color: rgba(255,255,255,0.7); font-size: 2.2vmin; margin-top: 0.4vh; }
+  .copy .lead { font-size: 4.2vmin; font-weight: 600; margin-top: 4vh; }
+  .copy .headline { font-family: var(--font-serif); font-weight: 800; color: var(--gold); font-size: 10vmin; line-height: 1.15; margin: 1vh 0 2vh; white-space: pre-line; text-shadow: 0 0.4vmin 0 rgba(0,0,0,0.3); }
+  .copy .sub { font-size: 3.6vmin; }
+  .where { display: inline-block; margin-top: 4vh; padding: 1.4vh 2vw; border: 2px solid var(--gold); border-radius: 1.5vmin; font-size: 3vmin; font-weight: 600; color: var(--gold-soft); }
+  .drawing-label { font-family: var(--font-serif); font-size: 11vmin; color: var(--gold); font-weight: 800; letter-spacing: 0.1em; }
+
+  .machine-wrap { display: grid; justify-items: center; gap: 2.5vh; }
+  #machine { width: min(40vw, 52vh); height: auto; overflow: visible; filter: drop-shadow(0 2vmin 2.5vmin rgba(0,0,0,0.35)); }
+  #drum { transform-box: fill-box; transform-origin: center; }
+  #drum.wobble { animation: wobble 4s ease-in-out infinite; }
+  @keyframes wobble { 0%,100% { transform: rotate(-5deg); } 50% { transform: rotate(5deg); } }
+  #ball { transform-box: view-box; transform-origin: 0 0; opacity: 0; }
+
+  .prize-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 1vh; width: min(42vw, 70vh); }
+  .prize-list li { display: flex; align-items: center; gap: 1.2vw; background: rgba(255,255,255,0.07); border-radius: 1.2vmin; padding: 0.9vh 1.2vw; font-size: 2.6vmin; }
+  .prize-list .rank-ball { font-size: 1.6vmin; width: 3.6vmin; height: 3.6vmin; }
+  .prize-list .rank { color: var(--gold-soft); font-weight: 800; min-width: 5em; }
+
+  /* 当選結果 */
+  .result { position: absolute; inset: 0; display: grid; grid-template-rows: auto 1fr auto; background: var(--cream); color: var(--ink); padding: 4vh 5vw 0; }
+  .result.show { animation: pop 0.5s cubic-bezier(.2,1.4,.4,1) both; }
+  @keyframes pop { from { opacity: 0; transform: scale(0.94); } to { opacity: 1; transform: none; } }
+  .result .congrats { font-family: var(--font-serif); font-weight: 800; color: var(--green-700); font-size: 6vmin; text-align: center; }
+  .result .replay-tag { position: absolute; top: 3vh; right: 3vw; background: var(--muted); color: #fff; font-size: 2vmin; padding: 0.4vh 1.2vw; border-radius: 99px; }
+  .result-body { display: grid; grid-template-columns: 1.2fr 1fr; align-items: center; gap: 4vw; min-height: 0; }
+  .prize-block { text-align: center; }
+  .big-ball { width: 22vmin; height: 22vmin; border-radius: 50%; margin: 0 auto 3vh; display: grid; place-items: center; font-size: 6vmin; font-weight: 800;
+    box-shadow: inset -2vmin -2.5vmin 3vmin rgba(0,0,0,0.2), inset 1.5vmin 1.5vmin 2vmin rgba(255,255,255,0.55), 0 2vmin 3vmin rgba(0,0,0,0.15); border: 1px solid rgba(0,0,0,0.1); }
+  .prize-name { font-size: 7.5vmin; font-weight: 800; line-height: 1.2; }
+  .prize-note { font-size: 3.2vmin; color: var(--muted); margin-top: 1vh; }
+  .qr-block { background: #fff; border-radius: 2vmin; padding: 2.5vmin; box-shadow: 0 1vmin 3vmin rgba(0,0,0,0.12); text-align: center; justify-self: center; width: min(34vw, 44vh); }
+  .qr-block .code-label { font-size: 2vmin; color: var(--muted); margin-top: 1vh; }
+  .qr-block .code { font-size: 5vmin; font-weight: 800; letter-spacing: 0.18em; }
+  .qr-block .exp { font-size: 2.4vmin; color: var(--ink); }
+  .result-foot { margin: 0 -5vw; background: var(--green-800); color: #fff; text-align: center; padding: 2.2vh 3vw 2.8vh; position: relative; }
+  .result-foot .scan { font-size: 3.4vmin; font-weight: 700; white-space: pre-line; line-height: 1.35; }
+  .result-foot .at { font-size: 2.6vmin; color: var(--gold-soft); margin-top: 0.6vh; }
+  .countdown { position: absolute; left: 0; top: 0; height: 0.8vh; background: var(--gold); width: 100%; transform-origin: left; }
+
+  .start { position: absolute; inset: 0; z-index: 20; display: grid; place-items: center; background: rgba(10,20,14,0.82); cursor: pointer; text-align: center; }
+  .start strong { display: block; font-size: 6vmin; color: var(--gold); font-family: var(--font-serif); }
+  .start span { font-size: 2.6vmin; color: rgba(255,255,255,0.8); }
+
+  .net { position: absolute; left: 1.5vw; bottom: 1.5vh; font-size: 1.8vmin; color: #ffd27a; background: rgba(0,0,0,0.4); padding: 0.4vh 1vw; border-radius: 99px; }
+  .fs-btn { position: absolute; right: 1vw; top: 1vh; opacity: 0; background: none; border: 0; color: #fff; font-size: 2vmin; cursor: pointer; z-index: 30; }
+  .fs-btn:hover, .fs-btn:focus { opacity: 0.6; }
+  #confetti { position: absolute; inset: 0; pointer-events: none; z-index: 10; }
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <div class="copy" id="copy-idle">
+    <div class="brand" data-i18n="brand"></div>
+    <div class="event" data-i18n="event_name"></div>
+    <div class="lead" data-i18n="mon_lead"></div>
+    <div class="headline" data-i18n="mon_headline"></div>
+    <div class="sub" data-i18n="mon_sub"></div>
+    <div class="where" id="where"></div>
+  </div>
+  <div class="copy hidden" id="copy-drawing">
+    <div class="brand" data-i18n="brand"></div>
+    <div class="drawing-label" data-i18n="mon_drawing"></div>
+  </div>
+
+  <div class="machine-wrap">
+    <svg id="machine" viewBox="0 0 500 470" aria-hidden="true">
+      <defs>
+        <radialGradient id="ballShine" cx="35%" cy="30%" r="75%">
+          <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+          <stop offset="0.35" stop-color="#fff" stop-opacity="0"/>
+          <stop offset="1" stop-color="#000" stop-opacity="0.28"/>
+        </radialGradient>
+        <linearGradient id="lacquer" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#c8462f"/><stop offset="1" stop-color="#7a2118"/>
+        </linearGradient>
+        <linearGradient id="wood" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#b07a46"/><stop offset="1" stop-color="#6e4422"/>
+        </linearGradient>
+      </defs>
+      <path d="M195 280 L135 440 M305 280 L365 440" stroke="url(#wood)" stroke-width="22" stroke-linecap="round"/>
+      <rect x="80" y="434" width="400" height="18" rx="6" fill="#4f2f15"/>
+      <g id="drum" class="wobble">
+        <polygon id="oct-outer" fill="url(#lacquer)" stroke="#e2c27a" stroke-width="8" stroke-linejoin="round"/>
+        <g id="oct-lines" stroke="#e2c27a" stroke-opacity="0.45" stroke-width="3"></g>
+        <polygon id="oct-inner" fill="none" stroke="#e2c27a" stroke-opacity="0.6" stroke-width="3"/>
+        <path d="M250 190 L250 76" stroke="#3b2414" stroke-width="12" stroke-linecap="round"/>
+        <circle cx="250" cy="70" r="15" fill="#3b2414"/>
+        <circle cx="250" cy="190" r="40" fill="#e2c27a"/>
+        <text x="250" y="206" text-anchor="middle" font-family="Shippori Mincho, serif" font-weight="800" font-size="46" fill="#7a2118">福</text>
+      </g>
+      <path d="M290 405 h185 v22 h-185 z" fill="url(#wood)"/>
+      <path d="M290 398 h8 v29 h-8 z M467 398 h8 v29 h-8 z" fill="#5a3619"/>
+      <g id="ball">
+        <circle r="22" id="ball-fill" fill="#d4a72c"/>
+        <circle r="22" fill="url(#ballShine)"/>
+      </g>
+    </svg>
+    <ul class="prize-list" id="prize-list"></ul>
+  </div>
+</div>
+
+<section class="result hidden" id="result" aria-live="polite">
+  <div class="congrats" data-i18n="mon_congrats"></div>
+  <div class="replay-tag hidden" id="replay-tag" data-i18n="mon_replay"></div>
+  <div class="result-body">
+    <div class="prize-block">
+      <div class="big-ball" id="r-ball"></div>
+      <div class="prize-name" id="r-name"></div>
+      <div class="prize-note" id="r-note"></div>
+    </div>
+    <div class="qr-block">
+      <div id="r-qr"></div>
+      <div class="code-label" data-i18n="code"></div>
+      <div class="code mono" id="r-code"></div>
+      <div class="exp" id="r-exp"></div>
+    </div>
+  </div>
+  <div class="result-foot">
+    <div class="countdown" id="countdown"></div>
+    <div class="scan" data-i18n="mon_scan"></div>
+    <div class="at" id="r-at"></div>
+  </div>
+</section>
+
+<canvas id="confetti"></canvas>
+<div class="start" id="start" role="button" tabindex="0">
+  <div><strong data-i18n="mon_start"></strong><span data-i18n="mon_start_sub"></span></div>
+</div>
+<div class="net hidden" id="net" data-i18n="mon_offline"></div>
+<button class="fs-btn" id="fs-btn" title="fullscreen">⛶</button>
+
+<script src="assets/js/config.js?v=3"></script>
+<script src="assets/lang/ja.js?v=3"></script>
+<script src="assets/lang/th.js?v=3"></script>
+<script src="assets/js/i18n.js?v=3"></script>
+<script src="assets/js/mock.js?v=3"></script>
+<script src="assets/js/api.js?v=3"></script>
+<script src="assets/js/ui.js?v=3"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script>
+(() => {
+  const { t, field, fmtDate } = I18N;
+  const cfg = APP_CONFIG;
+  const $ = (id) => document.getElementById(id);
+  const MIN_SHOW_MS = 20000; // 次の抽選が待っていても、最低この時間は結果を出しておく
+  let pin, busy = false;
+
+  I18N.apply();
+  UI.mockBadge();
+  $('where').textContent = t('mon_where', { place: t('cafe_place') });
+  $('r-at').textContent = t('mon_show_at', { place: t('cafe_place') });
+
+  // ---- 福引機の形
+  const octo = (r) => Array.from({ length: 8 }, (_, i) => {
+    const a = (-67.5 + 45 * i) * Math.PI / 180;
+    return [250 + r * Math.cos(a), 190 + r * Math.sin(a)];
+  });
+  const pts = (arr) => arr.map((p) => p.map((v) => v.toFixed(1)).join(',')).join(' ');
+  const outer = octo(150), inner = octo(112);
+  $('oct-outer').setAttribute('points', pts(outer));
+  $('oct-inner').setAttribute('points', pts(inner));
+  $('oct-lines').innerHTML = outer.map((p, i) => `<line x1="${p[0]}" y1="${p[1]}" x2="${inner[i][0]}" y2="${inner[i][1]}"/>`).join('');
+
+  // ---- 効果音（WebAudio で合成。最初のクリック後に有効）
+  let audio;
+  function initAudio() { try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); audio.resume(); } catch (e) { audio = null; } }
+  function tick(when, vol) {
+    if (!audio) return;
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.type = 'square'; o.frequency.value = 900 + Math.random() * 500;
+    g.gain.setValueAtTime(vol, when); g.gain.exponentialRampToValueAtTime(0.0001, when + 0.04);
+    o.connect(g).connect(audio.destination); o.start(when); o.stop(when + 0.05);
+  }
+  function rattle(ms) {
+    if (!audio) return;
+    const start = audio.currentTime;
+    let tt = 0;
+    while (tt < ms / 1000) { tick(start + tt, 0.05); tt += 0.05 + (tt / (ms / 1000)) * 0.1; }
+  }
+  function bell() {
+    if (!audio) return;
+    [0, 0.22, 0.44].forEach((d) => {
+      const now = audio.currentTime + d;
+      [1568, 2093, 3136].forEach((f, i) => {
+        const o = audio.createOscillator(), g = audio.createGain();
+        o.type = 'sine'; o.frequency.value = f;
+        g.gain.setValueAtTime(0.18 / (i + 1), now); g.gain.exponentialRampToValueAtTime(0.0001, now + 1.2);
+        o.connect(g).connect(audio.destination); o.start(now); o.stop(now + 1.3);
+      });
+    });
+  }
+
+  // ---- 紙吹雪
+  const cv = $('confetti'), cx = cv.getContext('2d');
+  function confetti() {
+    cv.width = innerWidth; cv.height = innerHeight;
+    const colors = ['#c19a3f', '#e6d3a1', '#5d7f46', '#c8402f', '#ffffff', '#8aa65c'];
+    const parts = Array.from({ length: 180 }, () => ({
+      x: Math.random() * cv.width, y: -Math.random() * cv.height * 0.6, w: 6 + Math.random() * 8, h: 10 + Math.random() * 10,
+      vy: 2 + Math.random() * 3, vx: -1 + Math.random() * 2, r: Math.random() * 6, vr: -0.1 + Math.random() * 0.2, c: colors[(Math.random() * colors.length) | 0],
+    }));
+    const end = performance.now() + 4500;
+    (function frame(now) {
+      cx.clearRect(0, 0, cv.width, cv.height);
+      if (now > end) return;
+      parts.forEach((p) => {
+        p.x += p.vx; p.y += p.vy; p.r += p.vr;
+        cx.save(); cx.translate(p.x, p.y); cx.rotate(p.r); cx.fillStyle = p.c; cx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h * Math.abs(Math.cos(p.r * 2))); cx.restore();
+      });
+      requestAnimationFrame(frame);
+    })(performance.now());
+  }
+
+  // ---- 待機画面の景品一覧
+  async function loadPrizes() {
+    const res = await API.call('public_prizes');
+    if (!res.ok) return;
+    $('prize-list').innerHTML = res.prizes.map((p) => `
+      <li><span class="rank-ball" style="background:${UI.esc(p.color)};color:${UI.inkFor(p.color)}">${p.rank}</span>
+      <span class="rank">${UI.esc(UI.rankLabel(p.rank))}</span><span>${UI.esc(field(p, 'name'))}</span></li>`).join('');
+  }
+
+  // ---- 抽選の演出
+  // 画面が裏に回るとアニメーションが止まることがあるので、時間で必ず先へ進める
+  const played = (anim, ms) => Promise.race([anim.finished.catch(() => {}), new Promise((r) => setTimeout(r, ms + 300))]);
+
+  async function playDraw(draw) {
+    const prize = draw.coupon.prize;
+    $('copy-idle').classList.add('hidden');
+    $('copy-drawing').classList.remove('hidden');
+    const drum = $('drum');
+    drum.classList.remove('wobble');
+    $('ball-fill').setAttribute('fill', prize.color);
+    rattle(3000);
+    await played(drum.animate([{ transform: 'rotate(0deg)' }, { transform: 'rotate(1440deg)' }],
+      { duration: 3200, easing: 'cubic-bezier(.45,.05,.3,1)' }), 3200);
+    tick(audio && audio.currentTime, 0.2);
+    await played($('ball').animate([
+      { transform: 'translate(250px,320px) scale(0.2)', opacity: 0 },
+      { transform: 'translate(250px,348px) scale(1)', opacity: 1, offset: 0.12 },
+      { transform: 'translate(305px,383px)', opacity: 1, offset: 0.4, easing: 'ease-out' },
+      { transform: 'translate(425px,383px)', opacity: 1, offset: 0.8 },
+      { transform: 'translate(408px,383px)', opacity: 1, offset: 0.92 },
+      { transform: 'translate(412px,383px)', opacity: 1 },
+    ], { duration: 1500, easing: 'ease-in', fill: 'forwards' }), 1500);
+    await new Promise((r) => setTimeout(r, 600));
+  }
+
+  function resetMachine() {
+    $('ball').getAnimations().forEach((a) => a.cancel());
+    $('drum').classList.add('wobble');
+    $('copy-drawing').classList.add('hidden');
+    $('copy-idle').classList.remove('hidden');
+  }
+
+  function showResult(draw) {
+    const c = draw.coupon, p = c.prize;
+    const ball = $('r-ball');
+    ball.style.background = p.color; ball.style.color = UI.inkFor(p.color);
+    ball.textContent = UI.rankLabel(p.rank);
+    $('r-name').textContent = field(p, 'name');
+    $('r-note').textContent = field(p, 'note');
+    $('r-qr').innerHTML = UI.qrSvg(UI.couponUrl(c.id));
+    $('r-code').textContent = c.code;
+    $('r-exp').textContent = t('mon_valid_until', { date: I18N.fmtExpiry(c.expires_at) });
+    $('replay-tag').classList.toggle('hidden', !draw.replay);
+    const r = $('result');
+    r.classList.remove('hidden', 'show'); void r.offsetWidth; r.classList.add('show');
+    if (!draw.replay) { bell(); confetti(); }
+  }
+
+  // 結果を表示し、時間切れ・クリック・次の抽選のいずれかで閉じる
+  function holdResult() {
+    return new Promise((resolve) => {
+      const total = cfg.monitorResultSeconds * 1000, started = Date.now();
+      const bar = $('countdown');
+      const anim = bar.animate([{ transform: 'scaleX(1)' }, { transform: 'scaleX(0)' }], { duration: total, fill: 'forwards' });
+      let done = false, timer;
+      const finish = (next) => {
+        if (done) return; done = true;
+        clearTimeout(timer); anim.cancel();
+        $('result').removeEventListener('click', onClick);
+        resolve(next || null);
+      };
+      const onClick = () => finish(null);
+      $('result').addEventListener('click', onClick);
+      const check = async () => {
+        if (done) return;
+        if (Date.now() - started >= total) return finish(null);
+        if (Date.now() - started >= MIN_SHOW_MS) {
+          const res = await API.call('monitor_next', { p_pin: pin });
+          if (res.ok && res.draw) return finish(res.draw);
+        }
+        timer = setTimeout(check, cfg.pollMs);
+      };
+      timer = setTimeout(check, cfg.pollMs);
+    });
+  }
+
+  async function run(draw) {
+    busy = true;
+    $('start').classList.add('hidden');
+    while (draw) {
+      if (!draw.replay) await playDraw(draw);
+      showResult(draw);
+      resetMachine();
+      draw = await holdResult();
+      $('result').classList.add('hidden');
+    }
+    busy = false;
+  }
+
+  async function poll() {
+    if (!busy) {
+      const res = await API.call('monitor_next', { p_pin: pin });
+      if (UI.isAuthError(res)) return UI.resetDevice('staff');
+      $('net').classList.toggle('hidden', res.ok || res.error !== 'network');
+      if (res.ok && res.draw) await run(res.draw);
+    }
+    setTimeout(poll, cfg.pollMs);
+  }
+
+  function start() {
+    initAudio();
+    $('start').classList.add('hidden');
+    if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {});
+  }
+  $('start').addEventListener('click', start);
+  $('start').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') start(); });
+  $('fs-btn').addEventListener('click', () => {
+    initAudio();
+    if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(() => {});
+  });
+  document.addEventListener('click', initAudio, { once: true });
+
+  UI.requirePin('staff').then((p) => {
+    pin = p;
+    loadPrizes();
+    setInterval(loadPrizes, 60000);
+    poll();
+  });
+})();
+</script>
+</body>
+</html>

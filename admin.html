@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>管理画面</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;800&family=Noto+Sans+Thai:wght@400;600;800&family=Shippori+Mincho:wght@700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/common.css?v=3">
+<style>
+  main { max-width: 1180px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; }
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+  .tabs button { border: 1px solid var(--line); background: var(--paper); border-radius: 999px; padding: 0.45em 1.1em; font-weight: 600; cursor: pointer; }
+  .tabs button[aria-selected=true] { background: var(--green-700); color: #fff; border-color: var(--green-700); }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .kpi .label { color: var(--muted); font-size: 0.85rem; font-weight: 600; }
+  .kpi .value { font-size: 2.2rem; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.2; }
+  .kpi .sub { color: var(--muted); font-size: 0.9rem; }
+  .table-wrap { overflow-x: auto; }
+  h2 { font-size: 1.05rem; margin: 0 0 10px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .prize-cards { display: grid; gap: 12px; }
+  .prize-card { display: grid; grid-template-columns: repeat(12, 1fr); gap: 10px 12px; align-items: end; }
+  .prize-card label { display: grid; gap: 3px; font-size: 0.8rem; color: var(--muted); font-weight: 600; }
+  .prize-card label > input, .prize-card label > select { color: var(--ink); font-weight: 400; }
+  .span-1 { grid-column: span 1; } .span-2 { grid-column: span 2; } .span-3 { grid-column: span 3; } .span-4 { grid-column: span 4; } .span-6 { grid-column: span 6; }
+  @media (max-width: 860px) { .prize-card > * { grid-column: span 6 !important; } }
+  @media (max-width: 520px) { .prize-card > * { grid-column: span 12 !important; } }
+  .prize-card input[type=color] { width: 100%; height: 2.6em; padding: 2px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+  .check { display: flex !important; align-items: center; gap: 6px; padding-bottom: 0.6em; }
+  .check input { width: 1.2em; height: 1.2em; }
+  .stat-line { grid-column: 1 / -1; font-size: 0.85rem; color: var(--muted); display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+  .stat-line .btn { margin-left: auto; }
+  .search { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+  .search input { flex: 1 1 220px; width: auto; }
+  .settings-grid { display: grid; gap: 14px; max-width: 520px; }
+  .settings-grid label { display: grid; gap: 4px; font-weight: 600; }
+  .settings-grid .help { font-weight: 400; color: var(--muted); font-size: 0.85rem; }
+  .bar { height: 8px; border-radius: 4px; background: #ebe5d4; overflow: hidden; min-width: 80px; }
+  .bar > span { display: block; height: 100%; background: var(--green-500); }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div><span class="brand-mark" data-i18n="brand"></span> <h1 style="display:inline" data-i18n="adm_title"></h1></div>
+  <button class="btn btn-sm" id="reset" data-i18n="pin_reset"></button>
+</header>
+<main>
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="overview" aria-selected="true" data-i18n="adm_tab_overview"></button>
+    <button role="tab" data-tab="prizes" data-i18n="adm_tab_prizes"></button>
+    <button role="tab" data-tab="coupons" data-i18n="adm_tab_coupons"></button>
+    <button role="tab" data-tab="settings" data-i18n="adm_tab_settings"></button>
+  </nav>
+
+  <section data-panel="overview">
+    <div class="kpis" id="kpis"></div>
+    <div class="card" style="margin-top:16px">
+      <h2><span data-i18n="adm_by_prize"></span><button class="btn btn-sm" id="refresh" data-i18n="adm_refresh"></button></h2>
+      <div class="table-wrap"><table id="prize-table"></table></div>
+    </div>
+  </section>
+
+  <section data-panel="prizes" class="hidden">
+    <div class="prize-cards" id="prize-cards"></div>
+    <div style="margin-top:12px"><button class="btn" id="add-prize" data-i18n="adm_add_prize"></button></div>
+    <p class="muted small"><span data-i18n="adm_weight_help"></span> ／ <span data-i18n="adm_stock_help"></span></p>
+  </section>
+
+  <section data-panel="coupons" class="hidden card">
+    <form class="search" id="search-form">
+      <input type="text" id="search" data-i18n-ph="adm_search_ph">
+      <button class="btn btn-primary" type="submit" data-i18n="adm_search"></button>
+      <button class="btn" type="button" id="csv" data-i18n="adm_csv"></button>
+    </form>
+    <div class="table-wrap"><table id="coupon-table"></table></div>
+  </section>
+
+  <section data-panel="settings" class="hidden">
+    <form class="card settings-grid" id="settings-form">
+      <label><span data-i18n="adm_valid_days"></span>
+        <input type="number" id="valid-days" min="0" max="365" required>
+        <span class="help" data-i18n="adm_valid_days_help"></span></label>
+      <label><span data-i18n="adm_event_end"></span>
+        <input type="date" id="event-end">
+        <span class="help" data-i18n="adm_event_end_help"></span></label>
+      <div><button class="btn btn-primary" type="submit" data-i18n="adm_save"></button></div>
+    </form>
+    <form class="card settings-grid" id="pin-form" style="margin-top:16px" autocomplete="off">
+      <h2 data-i18n="adm_pin_change"></h2>
+      <label><span data-i18n="adm_pin_role"></span>
+        <select id="pin-role">
+          <option value="staff" data-i18n="adm_role_staff"></option>
+          <option value="cafe" data-i18n="adm_role_cafe"></option>
+          <option value="admin" data-i18n="adm_role_admin"></option>
+        </select></label>
+      <label><span data-i18n="adm_pin_new"></span>
+        <input type="password" id="pin-new" inputmode="numeric" pattern="[0-9]{6,12}" required></label>
+      <div><button class="btn btn-primary" type="submit" data-i18n="adm_save"></button></div>
+    </form>
+  </section>
+</main>
+
+<script src="assets/js/config.js?v=3"></script>
+<script src="assets/lang/ja.js?v=3"></script>
+<script src="assets/lang/th.js?v=3"></script>
+<script src="assets/js/i18n.js?v=3"></script>
+<script src="assets/js/mock.js?v=3"></script>
+<script src="assets/js/api.js?v=3"></script>
+<script src="assets/js/ui.js?v=3"></script>
+<script>
+(() => {
+  const { t, field, fmtDate, errMsg } = I18N;
+  const $ = (id) => document.getElementById(id);
+  const esc = UI.esc;
+  let pin, overview, coupons = [];
+
+  I18N.apply();
+  UI.mockBadge();
+  $('reset').addEventListener('click', () => UI.resetDevice('admin'));
+
+  async function call(fn, args) {
+    const res = await API.call(fn, Object.assign({ p_pin: pin }, args || {}));
+    if (UI.isAuthError(res)) UI.resetDevice('admin');
+    return res;
+  }
+
+  // ---- タブ
+  document.querySelector('.tabs').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-tab]');
+    if (!b) return;
+    document.querySelectorAll('.tabs button').forEach((x) => x.setAttribute('aria-selected', x === b));
+    document.querySelectorAll('[data-panel]').forEach((p) => p.classList.toggle('hidden', p.dataset.panel !== b.dataset.tab));
+    if (b.dataset.tab === 'coupons') loadCoupons();
+    if (b.dataset.tab === 'prizes') renderPrizeCards();
+  });
+
+  const pct = (a, b) => (b ? Math.round((a / b) * 1000) / 10 : 0);
+
+  // ---- 概要
+  async function loadOverview() {
+    const res = await call('admin_overview');
+    if (!res.ok) { UI.toast(errMsg(res.error), 'error'); return; }
+    overview = res;
+    const T = res.totals;
+    $('kpis').innerHTML = [
+      [t('adm_draws'), T.draws, t('adm_today', { n: T.draws_today })],
+      [t('adm_redeemed'), T.redeemed, t('adm_today', { n: T.redeemed_today })],
+      [t('adm_rate'), pct(T.redeemed, T.draws) + '%', t('adm_today', { n: pct(T.redeemed_today, T.draws_today) + '%' })],
+    ].map(([l, v, s]) => `<div class="card kpi"><div class="label">${esc(l)}</div><div class="value">${esc(v)}</div><div class="sub">${esc(s)}</div></div>`).join('');
+
+    const pool = res.prizes.filter((p) => p.active && p.weight > 0 && (p.stock == null || p.issued < p.stock));
+    const totalW = pool.reduce((n, p) => n + p.weight, 0);
+    $('prize-table').innerHTML = `<thead><tr>
+        <th>${esc(t('adm_col_rank'))}</th><th>${esc(t('adm_col_name'))}</th><th class="num">${esc(t('adm_col_prob'))}</th>
+        <th class="num">${esc(t('adm_col_issued'))} / ${esc(t('adm_col_stock'))}</th><th class="num">${esc(t('adm_col_redeemed'))}</th>
+        <th>${esc(t('adm_col_rate'))}</th></tr></thead><tbody>` +
+      res.prizes.map((p) => {
+        const inPool = pool.includes(p);
+        const rate = pct(p.redeemed, p.issued);
+        return `<tr${p.active ? '' : ' class="muted"'}>
+          <td><span class="rank-ball" style="background:${esc(p.color)};color:${UI.inkFor(p.color)}">${p.rank}</span></td>
+          <td>${esc(field(p, 'name'))}</td>
+          <td class="num">${inPool ? pct(p.weight, totalW) + '%' : '—'}</td>
+          <td class="num">${p.issued} / ${p.stock == null ? esc(t('adm_unlimited')) : p.stock}</td>
+          <td class="num">${p.redeemed}</td>
+          <td><div style="display:flex;gap:8px;align-items:center"><div class="bar"><span style="width:${rate}%"></span></div>${rate}%</div></td></tr>`;
+      }).join('') + '</tbody>';
+    fillSettings();
+  }
+  $('refresh').addEventListener('click', loadOverview);
+
+  // ---- 景品設定
+  function prizeCard(p) {
+    const id = p.id || '';
+    return `<form class="card prize-card" data-id="${id}">
+      <label class="span-1">${esc(t('adm_col_rank'))}<input type="number" name="rank" min="1" value="${esc(p.rank ?? '')}" required></label>
+      <label class="span-4">${esc(t('adm_name_ja'))}<input type="text" name="name_ja" value="${esc(p.name_ja || '')}" required></label>
+      <label class="span-4">${esc(t('adm_name_th'))}<input type="text" name="name_th" value="${esc(p.name_th || '')}"></label>
+      <label class="span-2">${esc(t('adm_col_color'))}<input type="color" name="color" value="${esc(p.color || '#ffffff')}"></label>
+      <label class="span-1 check"><input type="checkbox" name="active" ${p.active !== false ? 'checked' : ''}>${esc(t('adm_col_active'))}</label>
+      <label class="span-4">${esc(t('adm_note_ja'))}<input type="text" name="note_ja" value="${esc(p.note_ja || '')}"></label>
+      <label class="span-4">${esc(t('adm_note_th'))}<input type="text" name="note_th" value="${esc(p.note_th || '')}"></label>
+      <label class="span-2">${esc(t('adm_col_weight'))}<input type="number" name="weight" min="0" value="${esc(p.weight ?? 10)}" required></label>
+      <label class="span-2">${esc(t('adm_col_stock'))}<input type="number" name="stock" min="0" value="${esc(p.stock ?? '')}" placeholder="${esc(t('adm_unlimited'))}"></label>
+      <div class="stat-line">
+        ${id ? `<span>${esc(t('adm_col_issued'))}: <b>${p.issued}</b></span><span>${esc(t('adm_col_redeemed'))}: <b>${p.redeemed}</b></span>` : `<b>${esc(t('adm_new_prize'))}</b>`}
+        <button class="btn btn-primary" type="submit">${esc(t('adm_save'))}</button>
+      </div>
+    </form>`;
+  }
+  function renderPrizeCards() {
+    if (!overview) return;
+    $('prize-cards').innerHTML = overview.prizes.map(prizeCard).join('');
+  }
+  $('add-prize').addEventListener('click', () => {
+    const next = overview ? Math.max(0, ...overview.prizes.map((p) => p.rank)) + 1 : 1;
+    $('prize-cards').insertAdjacentHTML('beforeend', prizeCard({ rank: next, weight: 10, active: true }));
+    $('prize-cards').lastElementChild.querySelector('[name=name_ja]').focus();
+  });
+  $('prize-cards').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    const v = (n) => f.elements[n].value;
+    const res = await call('admin_save_prize', { p_prize: {
+      id: f.dataset.id ? Number(f.dataset.id) : null,
+      rank: Number(v('rank')), name_ja: v('name_ja').trim(), name_th: v('name_th').trim(),
+      note_ja: v('note_ja').trim(), note_th: v('note_th').trim(), color: v('color'),
+      weight: Number(v('weight')), stock: v('stock') === '' ? null : Number(v('stock')), active: f.elements.active.checked,
+    } });
+    if (!res.ok) { UI.toast(errMsg(res.error), 'error'); return; }
+    UI.toast(t('adm_saved'), 'ok');
+    await loadOverview();
+    renderPrizeCards();
+  });
+
+  // ---- クーポン一覧
+  async function loadCoupons() {
+    const res = await call('admin_coupons', { p_search: $('search').value.trim(), p_limit: 5000 });
+    if (!res.ok) { UI.toast(errMsg(res.error), 'error'); return; }
+    coupons = res.coupons;
+    $('coupon-table').innerHTML = `<thead><tr>
+        <th>${esc(t('adm_col_issued_at'))}</th><th>${esc(t('adm_col_receipt'))}</th><th>${esc(t('adm_col_code'))}</th>
+        <th>${esc(t('adm_col_name'))}</th><th>${esc(t('adm_col_expires'))}</th><th>${esc(t('adm_col_status'))}</th>
+        <th>${esc(t('adm_col_redeemed_at'))}</th><th></th></tr></thead><tbody>` +
+      coupons.map((c) => `<tr>
+        <td>${esc(fmtDate(c.issued_at))}</td><td class="mono">${esc(c.receipt_no)}</td><td class="mono">${esc(c.code)}</td>
+        <td>${esc(UI.rankLabel(c.prize.rank))} ${esc(field(c.prize, 'name'))}</td><td>${esc(I18N.fmtExpiry(c.expires_at))}</td>
+        <td><span class="pill pill-${c.status}">${esc(t('status_' + c.status))}</span></td>
+        <td>${esc(fmtDate(c.redeemed_at))}</td>
+        <td>${c.status === 'void' ? `<button class="btn btn-sm" data-void="0" data-id="${c.id}">${esc(t('adm_unvoid'))}</button>`
+             : c.status === 'valid' ? `<button class="btn btn-sm" data-void="1" data-id="${c.id}">${esc(t('adm_void'))}</button>` : ''}</td>
+      </tr>`).join('') + '</tbody>';
+  }
+  $('search-form').addEventListener('submit', (e) => { e.preventDefault(); loadCoupons(); });
+  $('coupon-table').addEventListener('click', async (e) => {
+    const b = e.target.closest('button[data-void]');
+    if (!b) return;
+    const doVoid = b.dataset.void === '1';
+    if (doVoid && !confirm(t('adm_void_confirm'))) return;
+    const res = await call('admin_void', { p_id: b.dataset.id, p_void: doVoid });
+    if (!res.ok) UI.toast(errMsg(res.error), 'error');
+    loadCoupons(); loadOverview();
+  });
+  $('csv').addEventListener('click', () => {
+    const head = ['issued_at', 'receipt_no', 'code', 'rank', 'prize', 'expires_at', 'status', 'redeemed_at'];
+    const rows = coupons.map((c) => [c.issued_at, c.receipt_no, c.code, c.prize.rank, c.prize.name_ja, c.expires_at, c.status, c.redeemed_at || '']);
+    const csv = [head, ...rows].map((r) => r.map((x) => `"${String(x ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv' }));
+    a.download = `coupons_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+
+  // ---- 設定
+  function fillSettings() {
+    if (document.activeElement && document.activeElement.closest('#settings-form')) return;
+    $('valid-days').value = overview.settings.valid_days;
+    $('event-end').value = overview.settings.event_end || '';
+  }
+  $('settings-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const res = await call('admin_save_settings', { p_valid_days: Number($('valid-days').value), p_event_end: $('event-end').value || null });
+    UI.toast(res.ok ? t('adm_saved') : errMsg(res.error), res.ok ? 'ok' : 'error');
+    loadOverview();
+  });
+  $('pin-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const role = $('pin-role').value, np = $('pin-new').value;
+    const res = await call('admin_set_pin', { p_role: role, p_new: np });
+    if (!res.ok) { UI.toast(errMsg(res.error), 'error'); return; }
+    UI.toast(t('adm_pin_changed'), 'ok');
+    $('pin-new').value = '';
+    if (role === 'admin') { pin = np; localStorage.setItem('hs_pin_admin', np); }
+  });
+
+  UI.requirePin('admin').then((p) => {
+    pin = p;
+    loadOverview();
+    setInterval(() => { if (!document.querySelector('[data-panel=overview]').classList.contains('hidden')) loadOverview(); }, 15000);
+  });
+})();
+</script>
+</body>
+</html>
