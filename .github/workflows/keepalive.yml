@@ -1,0 +1,21 @@
+# Supabase 無料プランの自動停止（7日間使われないと一時停止）を防ぐため、
+# 1日1回サーバーにアクセスする。手動でも実行できる（Actions タブ → Run workflow）。
+name: Supabase keep-alive
+
+on:
+  schedule:
+    - cron: '17 2 * * *'   # 毎日 09:17（タイ時間）
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 景品一覧を取得してサーバーを起こしておく
+        run: |
+          res=$(curl -sS -m 30 -X POST \
+            'https://vdkzeugnekgviqtxwreb.supabase.co/rest/v1/rpc/public_prizes' \
+            -H 'apikey: sb_publishable_s0Gp8b3pX2lcrmN5saSzpw_oODAv7vy' \
+            -H 'Content-Type: application/json' -d '{}')
+          echo "$res" | head -c 200; echo
+          echo "$res" | grep -q '"ok": *true'
